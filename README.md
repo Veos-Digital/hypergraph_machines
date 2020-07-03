@@ -1,6 +1,6 @@
-# Discrete and continuous learning machines - Hypergraph machines
+# Parametric machines: a fresh approach toarchitecture search - Hypergraph machines
 
-This repository is part of the project *discrete and continuous learning machines*.
+This repository is part of the project *Parametric machines: a fresh approach toarchitecture search*.
 
 add link ...
 
