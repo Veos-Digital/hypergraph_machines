@@ -238,7 +238,7 @@ class BestModelSaver:
             'loss': loss,
             'state_dict': model.state_dict(),
             'best_acc1': acc,
-            'optimizer' : optimizer.state_dict(),
+            'optimizer': optimizer.state_dict(),
         }
         torch.save(state, self.path)
         if self.is_best(loss):
@@ -266,15 +266,16 @@ def train(model, device, train_loader, optimizer, epoch,
         (l1 + l2).backward()
         optimizer.step()
         if batch_idx % steps == 0 and batch_idx != 0:
-            print('Train Epoch: {} [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tAcc {:.3f}%'.format(
-                epoch, batch_idx * len(data), len(train_loader.dataset),
-                100. * batch_idx / len(train_loader), (l1 + l2).item(),
-                100. * correct / n_total))
+            print('Train Epoch '
+                  +'{}: [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tAcc {:.3f}%'.format(
+                      epoch, batch_idx * len(data), len(train_loader.dataset),
+                      100. * batch_idx / len(train_loader), (l1 + l2).item(),
+                      100. * correct / n_total))
             print("main loss: {:.3f}, ret loss: {:.3f}".format(l1.item(),
                                                                l2.item()))
 
 
-def test(model, device, test_loader, loss_func = F.nll_loss):
+def test(model, device, test_loader, loss_func=F.nll_loss):
     model.eval()
     test_loss = 0
     correct = 0
@@ -290,8 +291,9 @@ def test(model, device, test_loader, loss_func = F.nll_loss):
 
     test_loss /= len(test_loader.dataset)
     test_acc = 100. * correct / len(test_loader.dataset)
-    print('\nTest set: Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%)\n'.format(
-        test_loss, correct, len(test_loader.dataset), test_acc))
+    print('\nTest set:'
+          +' Average loss: {:.4f}, Accuracy: {}/{} ({:.3f}%)\n'.format(
+            test_loss, correct, len(test_loader.dataset), test_acc))
     return test_loss, test_acc
 
 
@@ -299,17 +301,17 @@ def generate_timestamp():
     return datetime.now().isoformat()[:-7].replace("T","-").replace(":","-")
 
 
-def get_spaced_colors(n, norm = False, black = True, cmap = 'jet'):
+def get_spaced_colors(n, norm=False, black=True, cmap='jet'):
     rgb_tuples = cm.get_cmap(cmap)
     if norm:
         colors = [rgb_tuples(i / n) for i in range(n)]
     else:
         rgb_array = np.asarray([rgb_tuples(i / n) for i in range(n)])
         brg_array = np.zeros(rgb_array.shape)
-        brg_array[:,0] = rgb_array[:,2]
-        brg_array[:,1] = rgb_array[:,1]
-        brg_array[:,2] = rgb_array[:,0]
-        colors = [tuple(brg_array[i,:] * 256) for i in range(n)]
+        brg_array[:, 0] = rgb_array[:, 2]
+        brg_array[:, 1] = rgb_array[:, 1]
+        brg_array[:, 2] = rgb_array[:, 0]
+        colors = [tuple(brg_array[i, :] * 256) for i in range(n)]
     if black:
         black = (0., 0., 0.)
         colors.insert(0, black)
@@ -328,56 +330,58 @@ def compute_out_shape(size, layer):
     return h_out, w_out
 
 
-def conv_out_shape(size, l):
+def conv_out_shape(size, conv_op):
     from math import floor
-    p = get_conv_like_attrs(l.padding)
-    d = get_conv_like_attrs(l.dilation)
-    k = get_conv_like_attrs(l.kernel_size)
-    s = get_conv_like_attrs(l.stride)
-    h = floor(((size[0] + (2 * p[0]) - d[0] * (k[0] - 1) - 1 ) / s[0]) + 1)
-    w = floor(((size[1] + (2 * p[1]) - d[1] * (k[1] - 1) - 1 ) / s[1]) + 1)
+    p = get_conv_like_attrs(conv_op.padding)
+    d = get_conv_like_attrs(conv_op.dilation)
+    k = get_conv_like_attrs(conv_op.kernel_size)
+    s = get_conv_like_attrs(conv_op.stride)
+    h = floor(((size[0] + (2 * p[0]) - d[0] * (k[0] - 1) - 1) / s[0]) + 1)
+    w = floor(((size[1] + (2 * p[1]) - d[1] * (k[1] - 1) - 1) / s[1]) + 1)
     return h, w
 
 
-def upsampling_out_shape(size, l):
-    if l.scale_factor is not None:
-        return size[0] * l.scale_factor, size[1] * l.scale_factor
-    elif l.size is not None:
-        s = get_conv_like_attrs(l.size)
+def upsampling_out_shape(size, conv_op):
+    if conv_op.scale_factor is not None:
+        return size[0] * conv_op.scale_factor, size[1] * conv_op.scale_factor
+    elif conv_op.size is not None:
+        s = get_conv_like_attrs(conv_op.size)
         return size[0] * s[0], size[1] * s[1]
 
 
 def get_conv_like_attrs(attr):
     if isinstance(attr, int):
-        attr  = [attr, attr]
+        attr = [attr, attr]
     elif len(attr) == 1:
         attr = [attr[0], attr[0]]
     return attr
 
 
-def is_upsampling(l):
-    return (isinstance(layer, nn.Upsample) or
-            isinstance(layer, nn.UpsamplingNearest2d) or
-            isinstance(layer, nn.UpsamplingBilinear2d))
+def is_upsampling(layer):
+    return (isinstance(layer, nn.Upsample)
+            or isinstance(layer, nn.UpsamplingNearest2d)
+            or isinstance(layer, nn.UpsamplingBilinear2d))
 
 
-def is_conv_like(l):
-    return (isinstance(l, nn.Conv2d) or
-            isinstance(l, nn.MaxPool2d))
+def is_conv_like(layer):
+    return (isinstance(layer, nn.Conv2d)
+            or isinstance(layer, nn.MaxPool2d))
 
 
 def get_graph(hm):
     graph = nx.DiGraph()
     [graph.add_node(i, color=get_node_color(hm.get_space_by_index(i)))
      for i in range(len(hm.spaces) + len(hm.output_spaces))]
-    [graph.add_edge(m.origin, m.destination, model=m.model, color=get_edge_color(m))
+    [graph.add_edge(m.origin, m.destination, model=m.model,
+                    color=get_edge_color(m))
      for s in hm.spaces[1:] for m in s.incoming if not m.pruned]
-    [graph.add_edge(m.origin, m.destination, model=m.model, color=get_edge_color(m))
+    [graph.add_edge(m.origin, m.destination, model=m.model,
+                    color=get_edge_color(m))
      for s in hm.output_spaces for m in s.incoming if not m.pruned]
     return graph
 
 
-def get_node_color(space, colors = ["w", "g", "y"]):
+def get_node_color(space, colors=["w", "g", "y"]):
     if space.is_input:
         return colors[0]
     elif space.is_output:
@@ -386,7 +390,7 @@ def get_node_color(space, colors = ["w", "g", "y"]):
         return colors[2]
 
 
-def get_edge_color(morphism, colors = ["k", "b", "r"]):
+def get_edge_color(morphism, colors=["k", "b", "r"]):
     if morphism.equivariance == "identity":
         return colors[0]
     elif morphism.equivariance == "translations":
@@ -395,18 +399,22 @@ def get_edge_color(morphism, colors = ["k", "b", "r"]):
         return colors[2]
 
 
-def visualise_graph(hm, ax = None):
+def visualise_graph(hm, ax=None):
     graph = get_graph(hm)
-    if ax is None: f, ax = plt.subplots()
+    if ax is None:
+        f, ax = plt.subplots()
     pos = nx.circular_layout(graph)
     n_colors = [n[1] for n in graph.nodes.data('color')]
-    nx.draw_networkx_nodes(graph, pos, ax = ax, node_color=n_colors)
-    labels = {s.index :s for s in hm.spaces}
-    for s in hm.output_spaces: labels[s.index] = s
-    nx.draw_networkx_labels(graph, pos, ax = ax, labels = labels)
+    nx.draw_networkx_nodes(graph, pos, ax=ax, node_color=n_colors)
+    labels = {s.index: s for s in hm.spaces}
+
+    for s in hm.output_spaces:
+        labels[s.index] = s
+
+    nx.draw_networkx_labels(graph, pos, ax=ax, labels=labels)
     e_colors = [e[2] for e in graph.edges.data('color')]
-    nx.draw_networkx_edges(graph, pos, arrows=True, ax = ax,
-                           edge_color = e_colors)
+    nx.draw_networkx_edges(graph, pos, arrows=True, ax=ax,
+                           edge_color=e_colors)
     lines = {"translations": Line2D([0], [0], color='b', lw=4),
              "identity": Line2D([0], [0], color='k', lw=4)}
     custom_lines = [lines[e] for e in hm.equivariances + ["identity"]]
