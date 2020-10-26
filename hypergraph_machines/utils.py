@@ -9,17 +9,28 @@ import networkx as nx
 from matplotlib import cm
 import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
-from math import floor
 
 EQUIVARIANCES = ['translations']
 ACTIVATIONS = ['relu', 'maxpool', 'upsample']
 
 
+class Conv1d_pad(nn.Conv1d):
+    def __init__(self, in_channels, out_channels, kernel_size, bias=False):
+        super(Conv1d_pad, self).__init__(in_channels, out_channels,
+                                         kernel_size, bias=False)
+        self.equivaricance = 'translations'
+        self.padding = (self.kernel_size[0]//2)
+
+    def __repr__(self):
+        return "{}\nkernel size{}".format("Conv1d", self.kernel_size)
+
+
 class Conv2d_pad(nn.Conv2d):
     def __init__(self, in_channels, out_channels, kernel_size, bias=False):
-        super(Conv2d_pad, self).__init__(in_channels, out_channels, kernel_size, bias=False)
+        super(Conv2d_pad, self).__init__(in_channels, out_channels,
+                                         kernel_size, bias=False)
         self.equivaricance = 'translations'
-        self.padding =  (self.kernel_size[0] // 2, self.kernel_size[1] // 2)
+        self.padding = (self.kernel_size[0] // 2, self.kernel_size[1] // 2)
 
     def __repr__(self):
         return "{}\nkernel size{}".format("Conv2d", self.kernel_size)
@@ -35,15 +46,32 @@ class LinearNoBias(nn.Linear):
         return "Linear, no bias"
 
 
-def morphism_func(equivariance):
-    return {'translations': Conv2d_pad, 'identity': LinearNoBias}[equivariance]
+def morphism_func(equivariance, dimension=2):
+    if dimension == 2:
+        translations = Conv2d_pad
+    elif dimension == 1:
+        translations = Conv1d_pad
+    else:
+        msg = "Dimennsion {} is not supported, use  1 or 2".format(dimension)
+        raise NotImplementedError(msg)
+    return {'translations': translations,
+            'identity': LinearNoBias}[equivariance]
 
 
-def activation_func(activation):
-    return  nn.ModuleDict([['relu', nn.ReLU6(inplace=False)],
-                           ['maxpool', nn.MaxPool2d(2)],
-                           ['upsample', nn.UpsamplingBilinear2d(scale_factor=2)],
-                           ['linear', nn.Identity()]])[activation]
+def activation_func(activation, dimension=2):
+    if dimension == 2:
+        maxpool = nn.MaxPool2d(2)
+        upsample = nn.UpsamplingBilinear2d(scale_factor=2)
+    elif dimension == 1:
+        maxpool = nn.MaxPool1d(2)
+        upsample = nn.Upsample(scale_factor=2)
+    else:
+        msg = "Dimennsion {} is not supported, use  1 or 2".format(dimension)
+        raise NotImplementedError(msg)
+    return nn.ModuleDict([['relu', nn.ReLU6(inplace=False)],
+                          ['maxpool', maxpool],
+                          ['upsample', upsample],
+                          ['linear', nn.Identity()]])[activation]
 
 
 def l2_norm(param):
@@ -51,18 +79,20 @@ def l2_norm(param):
     return torch.sqrt(torch.sum(torch.pow(param, 2)) / size_reg)
 
 
-def reg_loss(output, target, model, loss_func, reg_coeff = 1, n_incoming = 3):
+def reg_loss(output, target, model, loss_func, reg_coeff=1, n_incoming=3):
     spaces = model.spaces[model.number_of_input_spaces:]
     spaces.extend(model.output_spaces)
 
     for i, space in enumerate(spaces):
-        if i == 0: reg = 0
+        if i == 0:
+            reg = 0
         if not space.pruned:
             if i <= model.number_of_spaces:
                 coeff = len(space.incoming) - n_incoming
             else:
                 coeff = 1
-            if coeff < 0: coeff = 0
+            if coeff < 0:
+                coeff = 0
 
             for param in space.parameters():
                 reg += coeff * l2_norm(param)
@@ -73,16 +103,17 @@ def reg_loss(output, target, model, loss_func, reg_coeff = 1, n_incoming = 3):
 
 
 class Morphism(nn.Module):
-    def __init__(self, in_ch, out_ch, kernel_size = None,
-                 equivariance = 'translations', prunable = True, origin = None,
-                 destination = None):
+    def __init__(self, in_ch, out_ch, kernel_size=None, dimension=2,
+                 equivariance='translations', prunable=True, origin=None,
+                 destination=None):
         super(Morphism, self).__init__()
         self.in_ch = in_ch
         self.out_ch = out_ch
         self.kernel_size = kernel_size
         self.equivariance = equivariance
         params = self.get_equivariance_params()
-        self.model = nn.Sequential(morphism_func(equivariance)(*params))
+        self.model = nn.Sequential(morphism_func(equivariance,
+                                                 dimension=dimension)(*params))
         self.volume_buffer = None
         self.prunable = prunable
         self.origin = origin
@@ -130,20 +161,22 @@ class Morphism(nn.Module):
         return self.model(inputs)
 
 
-
 class Space(nn.Module):
-    def __init__(self, in_size, out_size, num_channels, incoming_morphisms = [],
-                 activation = "linear", index = None, prunable = True,
-                 is_input = False, is_output = False):
+    def __init__(self, in_size, out_size, num_channels, dimension=2,
+                 incoming_morphisms=[], activation="linear", index=None,
+                 prunable=True, is_input=False, is_output=False):
         super(Space, self).__init__()
         self.incoming = nn.ModuleList(incoming_morphisms)
         self.in_size = in_size
         self.out_size = out_size
         self.num_channels = num_channels
-        if type(self.out_size) == int: self.out_size = [self.out_size]
-        self.size = (self.num_channels,) + tuple(self.out_size)
+        self.dimension = dimension
+        if self.dimension == 1:
+            self.size = (self.num_channels, self.out_size)
+        else:
+            self.size = (self.num_channels,) + tuple(self.out_size)
         self.activation_name = activation
-        self.activation = activation_func(activation)
+        self.activation = activation_func(activation, dimension=dimension)
         self.index = index
         self._depth = 0
         self._pruned = False
@@ -153,7 +186,8 @@ class Space(nn.Module):
 
     @property
     def pruned(self):
-        if not self.prunable: return torch.BoolTensor([False])
+        if not self.prunable:
+            return torch.BoolTensor([False])
         pruned_incoming = torch.BoolTensor([m.pruned for m in self.incoming])
         return pruned_incoming.all()
 
@@ -213,7 +247,7 @@ class BestModelSaver:
 
 
 def train(model, device, train_loader, optimizer, epoch,
-          loss_func = F.nll_loss, loss_inputs = None):
+          loss_func=F.nll_loss, loss_inputs=None):
     steps = 150
     correct = 0
     n_total = 0
@@ -221,6 +255,8 @@ def train(model, device, train_loader, optimizer, epoch,
 
     for batch_idx, (data, target) in enumerate(train_loader):
         data, target = data.to(device), target.to(device)
+        if model.dimension == 1:
+            data = data.view(data.size(0), 1, -1)
         optimizer.zero_grad()
         output = model([data])
         l1, l2 = loss_func(output, target, *loss_inputs)
@@ -245,6 +281,8 @@ def test(model, device, test_loader, loss_func = F.nll_loss):
     with torch.no_grad():
         for data, target in test_loader:
             data, target = data.to(device), target.to(device)
+            if model.dimension == 1:
+                data = data.view(data.size(0), 1, -1)
             output = model([data])
             test_loss += loss_func(output, target, reduction='sum').item()
             pred = output.argmax(dim=1, keepdim=True)
