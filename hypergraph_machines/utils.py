@@ -221,6 +221,7 @@ class BestModelSaver:
     def __init__(self, path):
         self.loss = 1e+6
         self.check_path(path)
+        self.params_path = os.path.join(path, "params.npy")
         self.path = os.path.join(path, 'checkpoint.pth.tar')
         self.best_path = os.path.join(path, 'model_best.pth.tar')
 
@@ -233,12 +234,27 @@ class BestModelSaver:
         return self.loss > new_loss
 
     def save(self, model, optimizer, epoch, loss, acc):
+        print(epoch, '-'*8)
+        if epoch == 1:
+            params_dict = {
+                'input_size': model.input_size,
+                'number_of_spaces': model.number_of_spaces,
+                'dimension': model.dimension,
+                'num_channels': model.num_channels,
+                'activations': model.activations,
+                'equivariances': model.equivariances,
+                'kernel_size': model.kernel_size, 'tol': model.tol,
+                'number_of_input_spaces': model.number_of_input_spaces,
+                'number_of_classes': model.number_of_classes,
+                'limit_image_upsample': model.limit_image_upsample,
+                'classifier': model.classifier, 'prune': model.prune_it}
+            np.save(self.params_path, params_dict)
         state = {
             'epoch': epoch,
             'loss': loss,
             'state_dict': model.state_dict(),
             'best_acc1': acc,
-            'optimizer': optimizer.state_dict(),
+            'optimizer': optimizer.state_dict()
         }
         torch.save(state, self.path)
         if self.is_best(loss):
@@ -246,11 +262,32 @@ class BestModelSaver:
             shutil.copyfile(self.path, self.best_path)
 
 
+class BestModelLoader:
+    def __init__(self, path_to_ckpt_folder, model_class=None):
+        assert os.path.isdir(path_to_ckpt_folder), ("provide a valid ckpt dir")
+        self.path = path_to_ckpt_folder
+        self.model_class = model_class
+        self.model = self.load()
+
+    def load(self):
+        self.params_dict = np.load(os.path.join(self.path, 'params.npy'),
+                                   allow_pickle=True).item()
+        self.path = os.path.join(self.path, 'model_best.pth.tar')
+        state_dict = torch.load(self.path)
+        model = self.model_class(**self.params_dict)
+        model.load_state_dict(state_dict['state_dict'])
+        return model
+
+
+
 def train(model, device, train_loader, optimizer, epoch,
-          loss_func=F.nll_loss, loss_inputs=None):
-    steps = 150
+          loss_func=F.nll_loss, loss_inputs=None, ret=False):
+    steps = 10
     correct = 0
     n_total = 0
+    epoch_accs = []
+    epoch_loss = []
+    epoch_reg_loss = []
     model.train()
 
     for batch_idx, (data, target) in enumerate(train_loader):
@@ -265,14 +302,19 @@ def train(model, device, train_loader, optimizer, epoch,
         n_total += data.shape[0]
         (l1 + l2).backward()
         optimizer.step()
+        epoch_accs.append(100. * correct / n_total)
+        epoch_loss.append(l1.item())
+        epoch_reg_loss.append(l2.item())
         if batch_idx % steps == 0 and batch_idx != 0:
-            print('Train Epoch '
-                  +'{}: [{}/{} ({:.0f}%)]\tLoss: {:.6f}\tAcc {:.3f}%'.format(
+            print('Train Epoch {}: [{}/{} ({:.0f}%)]\tLoss: {:.3f}\tAcc {:.3f}%'.format(
                       epoch, batch_idx * len(data), len(train_loader.dataset),
                       100. * batch_idx / len(train_loader), (l1 + l2).item(),
                       100. * correct / n_total))
             print("main loss: {:.3f}, ret loss: {:.3f}".format(l1.item(),
                                                                l2.item()))
+    if ret:
+        return (np.mean(epoch_loss), np.mean(epoch_reg_loss),
+                np.mean(epoch_accs))
 
 
 def test(model, device, test_loader, loss_func=F.nll_loss):

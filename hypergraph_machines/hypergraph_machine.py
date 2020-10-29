@@ -8,24 +8,25 @@ EQUIVARIANCES = ["translations"]
 
 
 class HypergraphMachine(nn.Module):
-    def __init__(self, input_size, number_of_spaces, num_channels=4,
+    def __init__(self, input_size=None, number_of_spaces=None, num_channels=4,
                  limit_image_upsample=3, number_of_input_spaces=1,
-                 activitations=ACTIVATIONS, equivariances=EQUIVARIANCES,
+                 activations=ACTIVATIONS, equivariances=EQUIVARIANCES,
                  tol=1e-6, classifier=None, number_of_classes=None,
-                 prune=True, dimension=2):
+                 prune=True, dimension=2, kernel_size=3):
         super(HypergraphMachine, self).__init__()
         self.number_of_spaces = number_of_spaces
         self.input_size = input_size  # (ch, h, w)
         self.dimension = dimension
         self.num_channels = num_channels
-        self.activations = activitations
+        self.activations = activations
         self.equivariances = equivariances
+        self.kernel_size = kernel_size
         self.tol = tol
         self.input_channels = input_size[0]
         if dimension == 2:
             self.sizes = [input_size[1:]]
         else:
-            self.input_size = int(np.prod(input_size[1:]))
+            self.input_size_prod = int(np.prod(input_size[1:]))
             self.sizes = [int(np.prod(input_size[1:]))]
         self.number_of_input_spaces = number_of_input_spaces
         self.number_of_classes = number_of_classes
@@ -46,9 +47,9 @@ class HypergraphMachine(nn.Module):
 
     def resample_activation1d(self, out_size):
         print("input size ", self.input_size)
-        if out_size > self.input_size * self.limit_image_upsample:
+        if out_size > self.input_size_prod * self.limit_image_upsample:
             return True
-        elif out_size < self.input_size / self.limit_image_upsample:
+        elif out_size < self.input_size_prod / self.limit_image_upsample:
             return True
         else:
             return False
@@ -167,7 +168,7 @@ class HypergraphMachine(nn.Module):
                     num_in_ch = self.num_channels
                     prunable = True
                 equivariance = self.sample_equivariance()
-                m = Morphism(num_in_ch, self.num_channels, 3,
+                m = Morphism(num_in_ch, self.num_channels, self.kernel_size,
                              equivariance=equivariance, prunable=prunable,
                              origin=j, destination=space.index,
                              dimension=self.dimension)
