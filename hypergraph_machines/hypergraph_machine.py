@@ -37,7 +37,7 @@ class HypergraphMachine(nn.Module):
         self.build_spaces()
 
     def resample_activation(self, out_size):
-        print("input size ", self.input_size)
+        # print("input size ", self.input_size)
         if out_size[0] > self.input_size[1] * self.limit_image_upsample:
             return True
         elif out_size[0] < self.input_size[1] / self.limit_image_upsample:
@@ -46,7 +46,7 @@ class HypergraphMachine(nn.Module):
             return False
 
     def resample_activation1d(self, out_size):
-        print("input size ", self.input_size)
+        # print("input size ", self.input_size)
         if out_size > self.input_size_prod * self.limit_image_upsample:
             return True
         elif out_size < self.input_size_prod / self.limit_image_upsample:
@@ -63,13 +63,10 @@ class HypergraphMachine(nn.Module):
             out_size = (np.asarray(in_size)
                         * self.get_size_coeff(a)).astype(np.int)
 
-            print("out size after ", out_size)
             if self.dimension == 1:
                 res = self.resample_activation1d(out_size)
             else:
                 res = self.resample_activation(out_size)
-            print(self.sizes)
-            print(res)
 
         return a, in_size, out_size
 

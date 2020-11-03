@@ -221,6 +221,7 @@ class BestModelSaver:
     def __init__(self, path):
         self.loss = 1e+6
         self.check_path(path)
+        self.ckpt_folder = path
         self.params_path = os.path.join(path, "params.npy")
         self.path = os.path.join(path, 'checkpoint.pth.tar')
         self.best_path = os.path.join(path, 'model_best.pth.tar')
@@ -279,9 +280,8 @@ class BestModelLoader:
         return model
 
 
-
-def train(model, device, train_loader, optimizer, epoch,
-          loss_func=F.nll_loss, loss_inputs=None, ret=False):
+def train(model, device, train_loader, optimizer, epoch, loss_func=F.nll_loss,
+          loss_inputs=None, ret=False):
     steps = 10
     correct = 0
     n_total = 0
