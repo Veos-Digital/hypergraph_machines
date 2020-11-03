@@ -1,8 +1,8 @@
 # Parametric machines: a fresh approach toarchitecture search - Hypergraph machines
 
-This repository is part of the project *Parametric machines: a fresh approach toarchitecture search*.
+This repository is part of the project *Parametric machines: a fresh approach to architecture search*.
 
-add link ...
+[preprint](https://arxiv.org/pdf/2007.02777.pdf)
 
 ## Getting Started
 
